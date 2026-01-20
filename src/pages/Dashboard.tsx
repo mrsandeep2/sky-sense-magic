@@ -3,6 +3,7 @@ import { motion } from 'framer-motion';
 import { SearchBar } from '@/components/weather/SearchBar';
 import { WeatherCard } from '@/components/weather/WeatherCard';
 import { ForecastCard } from '@/components/weather/ForecastCard';
+import { LocationPrompt } from '@/components/weather/LocationPrompt';
 
 const Dashboard: React.FC = () => {
   return (
@@ -17,9 +18,12 @@ const Dashboard: React.FC = () => {
           Weather Dashboard
         </h1>
         <p className="text-muted-foreground mt-1">
-          Search for any city to get real-time weather
+          Search by city, area name, or pincode
         </p>
       </motion.div>
+
+      {/* Location Permission Prompt */}
+      <LocationPrompt />
 
       {/* Search */}
       <SearchBar />

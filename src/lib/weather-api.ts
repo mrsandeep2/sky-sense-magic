@@ -120,6 +120,55 @@ const demoWeatherData: Record<string, WeatherData> = {
     sunset: '20:30',
     icon: 'foggy',
   },
+  'delhi': {
+    city: 'Delhi',
+    country: 'IN',
+    temperature: 28,
+    feelsLike: 32,
+    condition: 'sunny',
+    conditionLabel: 'Clear',
+    humidity: 45,
+    windSpeed: 8,
+    sunrise: '05:45',
+    sunset: '18:30',
+    icon: 'sunny',
+  },
+  'bangalore': {
+    city: 'Bangalore',
+    country: 'IN',
+    temperature: 24,
+    feelsLike: 25,
+    condition: 'cloudy',
+    conditionLabel: 'Partly Cloudy',
+    humidity: 68,
+    windSpeed: 12,
+    sunrise: '06:00',
+    sunset: '18:15',
+    icon: 'cloudy',
+  },
+};
+
+// Pincode to city mapping (demo data)
+const pincodeMapping: Record<string, string> = {
+  '10001': 'new york',
+  '10002': 'new york',
+  '10003': 'new york',
+  'sw1a': 'london',
+  'e1': 'london',
+  'w1': 'london',
+  '75001': 'paris',
+  '75002': 'paris',
+  '100-0001': 'tokyo',
+  '400001': 'mumbai',
+  '400002': 'mumbai',
+  '110001': 'delhi',
+  '110002': 'delhi',
+  '560001': 'bangalore',
+  '560002': 'bangalore',
+  '94102': 'san francisco',
+  '94103': 'san francisco',
+  '2000': 'sydney',
+  '2001': 'sydney',
 };
 
 const generateForecast = (baseTemp: number, condition: WeatherCondition): ForecastDay[] => {
@@ -144,12 +193,37 @@ const generateForecast = (baseTemp: number, condition: WeatherCondition): Foreca
   });
 };
 
-export const searchWeather = async (city: string): Promise<{ weather: WeatherData; forecast: ForecastDay[] }> => {
+// Check if query is a pincode/postal code
+const isPincode = (query: string): boolean => {
+  const cleaned = query.replace(/[\s-]/g, '').toLowerCase();
+  return /^\d{4,6}$/.test(cleaned) || /^[a-z]{1,2}\d{1,2}[a-z]?$/i.test(cleaned);
+};
+
+// Resolve query to city name
+const resolveQuery = (query: string): string => {
+  const cleaned = query.replace(/[\s-]/g, '').toLowerCase();
+  
+  // Check if it's a pincode
+  if (pincodeMapping[cleaned]) {
+    return pincodeMapping[cleaned];
+  }
+  
+  // Check partial pincode match
+  for (const [pincode, city] of Object.entries(pincodeMapping)) {
+    if (pincode.startsWith(cleaned) || cleaned.startsWith(pincode)) {
+      return city;
+    }
+  }
+  
+  return query.toLowerCase().trim();
+};
+
+export const searchWeather = async (query: string): Promise<{ weather: WeatherData; forecast: ForecastDay[] }> => {
   // Simulate API delay
   await new Promise(resolve => setTimeout(resolve, 800));
   
-  const normalizedCity = city.toLowerCase().trim();
-  const weatherData = demoWeatherData[normalizedCity];
+  const resolvedCity = resolveQuery(query);
+  const weatherData = demoWeatherData[resolvedCity];
   
   if (weatherData) {
     return {
@@ -164,7 +238,64 @@ export const searchWeather = async (city: string): Promise<{ weather: WeatherDat
   const randomTemp = Math.floor(Math.random() * 30) + 5;
   
   const generatedWeather: WeatherData = {
-    city: city.charAt(0).toUpperCase() + city.slice(1),
+    city: query.charAt(0).toUpperCase() + query.slice(1),
+    country: 'XX',
+    temperature: randomTemp,
+    feelsLike: randomTemp - 2,
+    condition: randomCondition,
+    conditionLabel: randomCondition.charAt(0).toUpperCase() + randomCondition.slice(1),
+    humidity: Math.floor(Math.random() * 40) + 50,
+    windSpeed: Math.floor(Math.random() * 20) + 5,
+    sunrise: '06:00',
+    sunset: '18:30',
+    icon: randomCondition,
+  };
+  
+  return {
+    weather: generatedWeather,
+    forecast: generateForecast(randomTemp, randomCondition),
+  };
+};
+
+// Search by coordinates (reverse geocoding simulation)
+export const searchWeatherByCoords = async (lat: number, lon: number): Promise<{ weather: WeatherData; forecast: ForecastDay[] }> => {
+  // Simulate API delay
+  await new Promise(resolve => setTimeout(resolve, 800));
+  
+  // Demo location mapping based on approximate coordinates
+  let city = 'Your Location';
+  let country = 'XX';
+  
+  // Approximate location detection (demo)
+  if (lat >= 51.4 && lat <= 51.6 && lon >= -0.3 && lon <= 0.1) {
+    return searchWeather('london');
+  } else if (lat >= 40.6 && lat <= 40.9 && lon >= -74.1 && lon <= -73.8) {
+    return searchWeather('new york');
+  } else if (lat >= 35.5 && lat <= 35.8 && lon >= 139.5 && lon <= 140.0) {
+    return searchWeather('tokyo');
+  } else if (lat >= 48.8 && lat <= 49.0 && lon >= 2.2 && lon <= 2.5) {
+    return searchWeather('paris');
+  } else if (lat >= 18.9 && lat <= 19.3 && lon >= 72.7 && lon <= 73.0) {
+    return searchWeather('mumbai');
+  } else if (lat >= 28.4 && lat <= 28.9 && lon >= 76.8 && lon <= 77.5) {
+    return searchWeather('delhi');
+  } else if (lat >= 12.8 && lat <= 13.2 && lon >= 77.4 && lon <= 77.8) {
+    return searchWeather('bangalore');
+  } else if (lat >= -34.0 && lat <= -33.7 && lon >= 150.9 && lon <= 151.4) {
+    return searchWeather('sydney');
+  } else if (lat >= 37.7 && lat <= 37.9 && lon >= -122.5 && lon <= -122.3) {
+    return searchWeather('san francisco');
+  } else if (lat >= 25.0 && lat <= 25.4 && lon >= 55.1 && lon <= 55.5) {
+    return searchWeather('dubai');
+  }
+  
+  // Generate random data for unknown locations
+  const conditions: WeatherCondition[] = ['sunny', 'cloudy', 'rainy', 'stormy', 'foggy'];
+  const randomCondition = conditions[Math.floor(Math.random() * conditions.length)];
+  const randomTemp = Math.floor(Math.random() * 30) + 5;
+  
+  const generatedWeather: WeatherData = {
+    city: 'Current Location',
     country: 'XX',
     temperature: randomTemp,
     feelsLike: randomTemp - 2,
