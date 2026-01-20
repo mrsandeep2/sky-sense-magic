@@ -1,11 +1,13 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import { WeatherData, ForecastDay, WeatherCondition, FavoriteCity, SearchHistoryItem, AppSettings } from '@/lib/types';
-import { searchWeather } from '@/lib/weather-api';
+import { searchWeather, searchWeatherByCoords } from '@/lib/weather-api';
 import { 
   getFavorites, addFavorite, removeFavorite, isFavorite,
   getHistory, addToHistory, clearHistory,
   getSettings, updateSettings, convertTemperature
 } from '@/lib/storage';
+
+type LocationStatus = 'idle' | 'requesting' | 'granted' | 'denied' | 'unavailable';
 
 interface WeatherContextType {
   // Weather data
@@ -14,6 +16,10 @@ interface WeatherContextType {
   isLoading: boolean;
   error: string | null;
   weatherCondition: WeatherCondition;
+  
+  // Location
+  locationStatus: LocationStatus;
+  requestLocation: () => void;
   
   // Search
   searchCity: (city: string) => Promise<void>;
@@ -48,6 +54,7 @@ export const WeatherProvider: React.FC<{ children: ReactNode }> = ({ children })
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [weatherCondition, setWeatherCondition] = useState<WeatherCondition>('default');
+  const [locationStatus, setLocationStatus] = useState<LocationStatus>('idle');
   
   const [favorites, setFavorites] = useState<FavoriteCity[]>([]);
   const [history, setHistory] = useState<SearchHistoryItem[]>([]);
@@ -63,11 +70,80 @@ export const WeatherProvider: React.FC<{ children: ReactNode }> = ({ children })
     if (savedSettings.theme === 'dark') {
       document.documentElement.classList.add('dark');
     }
+
+    // Check if location was previously granted
+    if (navigator.permissions) {
+      navigator.permissions.query({ name: 'geolocation' }).then((result) => {
+        if (result.state === 'granted') {
+          setLocationStatus('granted');
+          fetchLocationWeather();
+        } else if (result.state === 'denied') {
+          setLocationStatus('denied');
+        }
+      }).catch(() => {
+        // Permissions API not supported, try geolocation directly
+        checkGeolocationSupport();
+      });
+    } else {
+      checkGeolocationSupport();
+    }
   }, []);
 
-  const searchCity = async (city: string) => {
-    if (!city.trim()) {
-      setError('Please enter a city name');
+  const checkGeolocationSupport = () => {
+    if (!navigator.geolocation) {
+      setLocationStatus('unavailable');
+    }
+  };
+
+  const fetchLocationWeather = async () => {
+    if (!navigator.geolocation) {
+      setLocationStatus('unavailable');
+      return;
+    }
+
+    setIsLoading(true);
+    setError(null);
+
+    navigator.geolocation.getCurrentPosition(
+      async (position) => {
+        try {
+          const { latitude, longitude } = position.coords;
+          const result = await searchWeatherByCoords(latitude, longitude);
+          setWeather(result.weather);
+          setForecast(result.forecast);
+          setWeatherCondition(result.weather.condition);
+          setLocationStatus('granted');
+        } catch (err) {
+          setError('Failed to fetch weather for your location.');
+        } finally {
+          setIsLoading(false);
+        }
+      },
+      (err) => {
+        setIsLoading(false);
+        if (err.code === err.PERMISSION_DENIED) {
+          setLocationStatus('denied');
+        } else {
+          setError('Unable to get your location.');
+        }
+      },
+      { enableHighAccuracy: true, timeout: 10000, maximumAge: 300000 }
+    );
+  };
+
+  const requestLocation = () => {
+    if (!navigator.geolocation) {
+      setLocationStatus('unavailable');
+      return;
+    }
+
+    setLocationStatus('requesting');
+    fetchLocationWeather();
+  };
+
+  const searchCity = async (query: string) => {
+    if (!query.trim()) {
+      setError('Please enter a city name or pincode');
       return;
     }
     
@@ -75,7 +151,7 @@ export const WeatherProvider: React.FC<{ children: ReactNode }> = ({ children })
     setError(null);
     
     try {
-      const result = await searchWeather(city);
+      const result = await searchWeather(query);
       setWeather(result.weather);
       setForecast(result.forecast);
       setWeatherCondition(result.weather.condition);
@@ -142,6 +218,8 @@ export const WeatherProvider: React.FC<{ children: ReactNode }> = ({ children })
         isLoading,
         error,
         weatherCondition,
+        locationStatus,
+        requestLocation,
         searchCity,
         favorites,
         addToFavorites: handleAddToFavorites,
