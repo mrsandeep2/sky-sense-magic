@@ -1,6 +1,6 @@
 import React from 'react';
 import { motion } from 'framer-motion';
-import { Droplets, Wind, Sunrise, Sunset, Star, StarOff } from 'lucide-react';
+import { Droplets, Wind, Sunrise, Sunset, Star, StarOff, MapPin, Loader2 } from 'lucide-react';
 import { WeatherIcon } from './WeatherIcon';
 import { useWeather } from '@/contexts/WeatherContext';
 import { Button } from '@/components/ui/button';
@@ -14,41 +14,60 @@ export const WeatherCard: React.FC = () => {
     addToFavorites, 
     removeFromFavorites, 
     isInFavorites,
-    favorites
+    favorites,
+    locationStatus,
+    requestLocation
   } = useWeather();
 
   if (isLoading) {
     return <WeatherCardSkeleton />;
   }
 
-  if (error) {
+  // Show location prompt when there's an error or no weather data and location hasn't been granted
+  if ((error || !weather) && locationStatus !== 'granted') {
     return (
       <motion.div 
         className="glass-card p-8 text-center"
         initial={{ opacity: 0, scale: 0.95 }}
         animate={{ opacity: 1, scale: 1 }}
       >
-        <p className="text-destructive font-medium">{error}</p>
+        <div className="w-16 h-16 rounded-full bg-primary/20 flex items-center justify-center mx-auto mb-4">
+          <MapPin className="w-8 h-8 text-primary" />
+        </div>
+        <h3 className="text-xl font-display font-semibold text-foreground mb-2">
+          Enable Location Access
+        </h3>
+        <p className="text-muted-foreground mb-6 max-w-sm mx-auto">
+          Allow location access to automatically get weather for your current area, or search for a city above.
+        </p>
+        <Button 
+          onClick={requestLocation}
+          disabled={locationStatus === 'requesting'}
+          className="bg-primary hover:bg-primary/90 text-primary-foreground"
+        >
+          {locationStatus === 'requesting' ? (
+            <>
+              <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+              Getting Location...
+            </>
+          ) : (
+            <>
+              <MapPin className="w-4 h-4 mr-2" />
+              Allow Location
+            </>
+          )}
+        </Button>
+        {locationStatus === 'denied' && (
+          <p className="text-sm text-destructive mt-4">
+            Location access was denied. Please enable it in your browser settings or search for a city.
+          </p>
+        )}
       </motion.div>
     );
   }
 
   if (!weather) {
-    return (
-      <motion.div 
-        className="glass-card p-12 text-center"
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-      >
-        <WeatherIcon condition="default" size="xl" />
-        <h2 className="mt-4 text-xl font-display font-semibold text-foreground">
-          Search for a city
-        </h2>
-        <p className="mt-2 text-muted-foreground">
-          Enter a city name to see the weather
-        </p>
-      </motion.div>
-    );
+    return null; // Location prompt is shown above when no weather
   }
 
   const isFav = isInFavorites(weather.city);
