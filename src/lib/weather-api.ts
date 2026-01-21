@@ -1,7 +1,14 @@
 import { WeatherData, ForecastDay, WeatherCondition } from './types';
 
-const API_KEY = '90b3f05d7e95335cc53b2f1f0b452601';
 const BASE_URL = 'https://api.openweathermap.org/data/2.5';
+
+const getApiKey = (): string => {
+  const key = import.meta.env.VITE_OPENWEATHER_API_KEY as string | undefined;
+  if (!key) {
+    throw new Error('Missing OpenWeather API key.');
+  }
+  return key;
+};
 
 const mapCondition = (weatherId: number): WeatherCondition => {
   if (weatherId >= 200 && weatherId < 300) return 'stormy';
@@ -75,6 +82,7 @@ const parseForecastResponse = (data: any): ForecastDay[] => {
 
 export const searchWeather = async (query: string): Promise<{ weather: WeatherData; forecast: ForecastDay[] }> => {
   try {
+    const API_KEY = getApiKey();
     // Try searching by city name first, then by zip code
     let weatherUrl = `${BASE_URL}/weather?q=${encodeURIComponent(query)}&appid=${API_KEY}&units=metric`;
     let forecastUrl = `${BASE_URL}/forecast?q=${encodeURIComponent(query)}&appid=${API_KEY}&units=metric`;
@@ -91,8 +99,15 @@ export const searchWeather = async (query: string): Promise<{ weather: WeatherDa
       fetch(forecastUrl),
     ]);
 
-    if (!weatherRes.ok) {
-      throw new Error('City not found');
+    if (!weatherRes.ok || !forecastRes.ok) {
+      // Prefer a specific auth error message
+      if (weatherRes.status === 401 || forecastRes.status === 401) {
+        throw new Error('Invalid OpenWeather API key.');
+      }
+      if (weatherRes.status === 404) {
+        throw new Error('City not found');
+      }
+      throw new Error('Failed to fetch weather data');
     }
 
     const weatherData = await weatherRes.json();
@@ -103,19 +118,24 @@ export const searchWeather = async (query: string): Promise<{ weather: WeatherDa
       forecast: parseForecastResponse(forecastData),
     };
   } catch (error) {
-    throw new Error('Failed to fetch weather data. Please check the city name or pincode.');
+    const message = error instanceof Error ? error.message : 'Failed to fetch weather data.';
+    throw new Error(message);
   }
 };
 
 export const searchWeatherByCoords = async (lat: number, lon: number): Promise<{ weather: WeatherData; forecast: ForecastDay[] }> => {
   try {
+    const API_KEY = getApiKey();
     const [weatherRes, forecastRes] = await Promise.all([
       fetch(`${BASE_URL}/weather?lat=${lat}&lon=${lon}&appid=${API_KEY}&units=metric`),
       fetch(`${BASE_URL}/forecast?lat=${lat}&lon=${lon}&appid=${API_KEY}&units=metric`),
     ]);
 
-    if (!weatherRes.ok) {
-      throw new Error('Location not found');
+    if (!weatherRes.ok || !forecastRes.ok) {
+      if (weatherRes.status === 401 || forecastRes.status === 401) {
+        throw new Error('Invalid OpenWeather API key.');
+      }
+      throw new Error('Failed to fetch weather for your location.');
     }
 
     const weatherData = await weatherRes.json();
@@ -126,7 +146,8 @@ export const searchWeatherByCoords = async (lat: number, lon: number): Promise<{
       forecast: parseForecastResponse(forecastData),
     };
   } catch (error) {
-    throw new Error('Failed to fetch weather for your location.');
+    const message = error instanceof Error ? error.message : 'Failed to fetch weather for your location.';
+    throw new Error(message);
   }
 };
 
