@@ -138,6 +138,7 @@ export const WeatherProvider: React.FC<{ children: ReactNode }> = ({ children })
     }
 
     setLocationStatus('requesting');
+    setError(null); // Clear any previous errors
     fetchLocationWeather();
   };
 
